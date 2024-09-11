@@ -33,6 +33,9 @@
 Quickly calculate how much to pay and make payments using your preferred payment method.
 </p>
 <p class="center">
+Conversion rates updated by Visa&#174;.
+</p>
+<p class="center">
 Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Functionality to calculate them in will be added soon.
 </p>
 
@@ -83,9 +86,12 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
   </p>
 </div>
 
+<a tabindex="0" class="btn filled icon-left" onclick="processForm()">
+  <i class="material-icons">calculate</i>Submit
+</a>
+
 <span id="error-card"></span>
 
-<button onclick="processForm()">Submit</button>
 
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.1.1/dist/js/materialize.min.js" integrity="sha256-3qGJ4NkNzpEWdLmV4WeiJulql2I6TslFusW4C5QhbmU=" crossorigin="anonymous"></script>
@@ -226,11 +232,11 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
       { id: '53', value: '702' },                   // ID 53: Currency. SGD is 702
       { id: '54', value: opts.amount.toString() },  // ID 54: Transaction Amount
       { id: '58', value: 'SG' },                    // ID 58: 2-letter Country Code (SG)
-      { id: '59', value: 'COMPANY NAME' },          // ID 59: Company Name
+      { id: '59', value: 'SEE TOW S H' },          // ID 59: Company Name
       { id: '60', value: 'Singapore' },             // ID 60: Merchant City
       {
         id: '62', value: [{                         // ID 62: Additional data fields
-          id: '01', value: opts.refNumber || ''    // ID 01: Bill Number
+          id: '01', value: opts.refNumber || 'ST Payments/PayNow Trf'    // ID 01: Bill Number
         }]
       }
     ]
