@@ -87,8 +87,8 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 <div class="card green lighten-3" style="display: none;" id="success-card-paynow">
   <div class="card-content">
     <span class="card-title">Success!</span>
-    <p>Simply scan this QR code with your favourite banking app to pay.</p>
-    <div id="paynow-qr" width="100%"></div>
+    <p>Your total due is <b id="amount-sgd"></b>. Simply scan this QR code with your favourite banking app to pay.</p>
+    <div id="paynow-qr"></div>
     <p>If you are paying using this device, please take a screenshot or save the QR code.</p>  
   </div>
 </div>
@@ -109,6 +109,8 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.1.1/dist/js/materialize.min.js" integrity="sha256-3qGJ4NkNzpEWdLmV4WeiJulql2I6TslFusW4C5QhbmU=" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/easyqrcodejs@4.6.1/dist/easy.qrcode.min.js" integrity="sha256-Fo2ReOrm4CpFeRT3gEiA303kO8giOmwEkm6uz3+6DBg=" crossorigin="anonymous"></script>
+
 <script>
   M.AutoInit();
 
@@ -281,6 +283,8 @@ function validatePaymentMethod() {
 function processForm() {
   const successCard = document.getElementById('success-card-paynow');
   const errorCard = document.getElementById('error-card');
+  const totalString = document.getElementById('amount-sgd');
+
   
   // First, hide both cards
   successCard.style.display = 'none';
@@ -289,12 +293,24 @@ function processForm() {
   if (validatePaymentMethod()) {
     // Calculate total and generate PayNow string
     const total = calculateTotal();
-    const paynowString = generatePayNowStr({ amount: total });
+    const paynowString = generatePayNowStr({ amount: total.toFixed(2) });
     console.log(paynowString);
+    totalString.textContent = total.toFixed(2);
 
     // Show success card
     successCard.style.display = 'block';
     errorCard.style.display = 'none';
+    
+	// Options
+	var qroptions = {
+		text: paynowString,
+    quietZone: 10,
+    logo: "https://pay.seetow.sg/paynow-logo-2.png"
+	};
+	
+	// Create QRCode Object
+	new QRCode(document.getElementById("paynow-qr"), qroptions);
+  
   } else {
     // If validation fails, show error card
     errorCard.style.display = 'block';
@@ -303,6 +319,6 @@ function processForm() {
 }
 
 </script>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"8c199ef8cb72832a","version":"2024.8.0","r":1,"token":"80ed83f8166a43b9aea9eb6b59c69ab8","serverTiming":{"name":{"cfExtPri":true,"cfL4":true}}}' crossorigin="anonymous"></script>
+
 </body>
 </html>
