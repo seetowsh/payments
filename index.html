@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+<title>See Tow Pay</title>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.1.1/dist/css/materialize.min.css" integrity="sha256-J82Xiw6NEIpf7yHOckex1vvwdOI7r61+sHQ0DVwHNmU=" crossorigin="anonymous">
 <link href="https://fonts.googleapis.com/css?family=Livvic|Nunito+Sans&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
 <style>
   .radio-group {
     display: flex;
@@ -15,10 +15,11 @@
   .radio-group label {
     margin-right: 20px;
   }
+  footer {
+    bottom: 0;
+  }
 </style>
-
 </head>
-
 <body>
 <div class="navbar-fixed">
 <nav style="background-color: #fff;">
@@ -27,7 +28,6 @@
 </div>
 </nav>
 </div>
-
 <div class="container">
 <p class="center">
 Quickly calculate how much to pay and make payments using your preferred payment method.
@@ -38,62 +38,76 @@ Conversion rates updated by Visa&#174;.
 <p class="center">
 Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Functionality to calculate them in will be added soon.
 </p>
-
 <div class="row">
 <div class="input-field col s4 m2">
-  <select id="form-select-1">
-    <option value="" disabled selected>Currency</option>
-    <option value="1">&#163;</option>
-    <option value="2">&#8364;</option>
-    <option value="3">SG&#36;</option>
-    <option value="4">US&#36;</option>
-  </select>
-  <label for="form-select-1">Currency</label>
+<select id="form-select-1">
+<option value disabled selected>Currency</option>
+<option value="1">&#163;</option>
+<option value="2">&#8364;</option>
+<option value="3">SG&#36;</option>
+<option value="4">US&#36;</option>
+</select>
+<label for="form-select-1">Currency</label>
 </div>
-
 <div class="input-field col s8 m10">
-  <input id="last_name" placeholder=" " type="number" min="0" step="0.01">
-  <label for="last_name">Amount to pay</label>
+<input id="last_name" placeholder=" " type="number" min="0" step="0.01">
+<label for="last_name">Amount to pay</label>
 </div>
 </div>
-
 <p>
-  <label>
-    <input type="checkbox" id="service-charge-checkbox" />
-    <span>10% service charge was levied (&#127480;&#127468; only)</span>
-  </label>
+<label>
+<input type="checkbox" id="service-charge-checkbox" />
+<span>10% service charge was levied (&#127480;&#127468; only)</span>
+</label>
 </p>
-  
 <p>
-  <label>
-    <input type="checkbox" id="gst-checkbox" />
-    <span>9% GST was levied (&#127480;&#127468; only)</span>
-  </label>
+<label>
+<input type="checkbox" id="gst-checkbox" />
+<span>9% GST was levied (&#127480;&#127468; only)</span>
+</label>
 </p>
-
 <div class="radio-group">
-  <p>
-    <label>
-      <input name="option" type="radio" class="with-gap" value="1" />
-      <span>PayNow/PayLah (preferred)</span>
-    </label>
-  </p>
-  <p>
-    <label>
-      <input name="option" type="radio" class="with-gap" value="2" />
-      <span>Faster Payments</span>
-    </label>
-  </p>
+<p>
+<label>
+<input name="option" type="radio" class="with-gap" value="1" />
+<span>PayNow/PayLah (preferred)</span>
+</label>
+</p>
+<p>
+<label>
+<input name="option" type="radio" class="with-gap" value="2" />
+<span>Faster Payments</span>
+</label>
+</p>
 </div>
-
 <a tabindex="0" class="btn filled icon-left" onclick="processForm()">
-  <i class="material-icons">calculate</i>Submit
+<i class="material-icons">calculate</i>Submit
 </a>
 
-<span id="error-card"></span>
+<div class="card green lighten-3" style="display: none;" id="success-card-paynow">
+  <div class="card-content">
+    <span class="card-title">Success!</span>
+    <p>Simply scan this QR code with your favourite banking app to pay.</p>
+    <div id="paynow-qr" width="100%"></div>
+    <p>If you are paying using this device, please take a screenshot or save the QR code.</p>  
+  </div>
+</div>
 
+<div class="card red accent-1" style="display: none;" id="error-card">
+  <div class="card-content">
+    <span class="card-title">Error &#128547;</span>
+    <p></p>
+  </div>
+</div>
 
 </div>
+
+  <div class="footer-copyright">
+    <div class="container">
+    <p>&copy; 2014-2024 <a class="orange-text text-lighten-3" href="https://seetow.sg">See Tow</a> Technologies (CRN: 202258286G).</p>
+    </div>
+  </div>
+
 <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.1.1/dist/js/materialize.min.js" integrity="sha256-3qGJ4NkNzpEWdLmV4WeiJulql2I6TslFusW4C5QhbmU=" crossorigin="anonymous"></script>
 <script>
   M.AutoInit();
@@ -104,23 +118,26 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
     return { amount, currency };
   }
 
-  function validatePaymentMethod() {
-    const { amount, currency } = getFormData();
-    const selectedPaymentMethod = document.querySelector('input[name="option"]:checked');
-    
-    if (!selectedPaymentMethod) {
-      document.getElementById('error-card').textContent = "Please select a payment method.";
-      return false;
-    }
+function validatePaymentMethod() {
+  const { amount, currency } = getFormData();
+  const selectedPaymentMethod = document.querySelector('input[name="option"]:checked');
+  const errorCard = document.getElementById('error-card');
 
-    const value = selectedPaymentMethod.value;
-    if (value === "2" && currency === "3") { // Faster Payments selected and currency is SGD
-      document.getElementById('error-card').textContent = "Faster Payments cannot be used with SGD currency.";
-      return false;
-    }
-    document.getElementById('error-card').textContent = ""; // Clear any previous errors
-    return true;
+  if (!selectedPaymentMethod) {
+    // Set custom error message for no payment method selected
+    errorCard.querySelector('.card-content p').textContent = "Please select a payment method.";
+    return false;
   }
+
+  const value = selectedPaymentMethod.value;
+  if (value === "2" && currency === "3") { // Faster Payments selected and currency is SGD
+    errorCard.querySelector('.card-content p').textContent = "Faster Payments is not available for SGD.";
+    return false;
+  }
+
+  return true; // Form is valid
+}
+
 
   function calculateTotal() {
     const { amount, currency } = getFormData();
@@ -261,13 +278,31 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
     return str;
   }
 
-  function processForm() {
-    if (validatePaymentMethod()) {
-      const total = calculateTotal();
-      const paynowString = generatePayNowStr({ amount: total });
-      console.log(paynowString);
-    }
+function processForm() {
+  const successCard = document.getElementById('success-card-paynow');
+  const errorCard = document.getElementById('error-card');
+  
+  // First, hide both cards
+  successCard.style.display = 'none';
+  errorCard.style.display = 'none';
+
+  if (validatePaymentMethod()) {
+    // Calculate total and generate PayNow string
+    const total = calculateTotal();
+    const paynowString = generatePayNowStr({ amount: total });
+    console.log(paynowString);
+
+    // Show success card
+    successCard.style.display = 'block';
+    errorCard.style.display = 'none';
+  } else {
+    // If validation fails, show error card
+    errorCard.style.display = 'block';
+    successCard.style.display = 'none';
   }
+}
+
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"8c199ef8cb72832a","version":"2024.8.0","r":1,"token":"80ed83f8166a43b9aea9eb6b59c69ab8","serverTiming":{"name":{"cfExtPri":true,"cfL4":true}}}' crossorigin="anonymous"></script>
 </body>
 </html>
