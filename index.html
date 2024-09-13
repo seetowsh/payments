@@ -40,18 +40,18 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 </p>
 <div class="row">
 <div class="input-field col s4 m2">
-<select id="form-select-1">
-<option value disabled selected>Currency</option>
+<select id="currency-select">
+<option value disabled selected>Select</option>
 <option value="1">&#163;</option>
 <option value="2">&#8364;</option>
 <option value="3">SG&#36;</option>
 <option value="4">US&#36;</option>
 </select>
-<label for="form-select-1">Currency</label>
+<label for="currency-select">Currency</label>
 </div>
 <div class="input-field col s8 m10">
-<input id="last_name" placeholder=" " type="number" min="0" step="0.01">
-<label for="last_name">Amount to pay</label>
+<input id="payment-amount" placeholder=" " type="number" min="0" step="0.01">
+<label for="payment-amount">Amount to pay</label>
 </div>
 </div>
 <p>
@@ -69,13 +69,13 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 <div class="radio-group">
 <p>
 <label>
-<input name="option" type="radio" class="with-gap" value="1" />
+<input name="payment-method" type="radio" class="with-gap" value="1" />
 <span>PayNow/PayLah (preferred)</span>
 </label>
 </p>
 <p>
 <label>
-<input name="option" type="radio" class="with-gap" value="2" />
+<input name="payment-method" type="radio" class="with-gap" value="2" />
 <span>Faster Payments</span>
 </label>
 </p>
@@ -87,7 +87,7 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 <div class="card green lighten-3" style="display: none;" id="success-card-paynow">
   <div class="card-content">
     <span class="card-title">Success!</span>
-    <p>Your total due is <b id="amount-sgd"></b>. Simply scan this QR code with your favourite banking app to pay.</p>
+    <p>Your total due is &#36;<b id="amount-sgd"></b>. Simply scan this QR code with your favourite banking app to pay.</p>
     <div id="paynow-qr"></div>
     <p>If you are paying using this device, please take a screenshot or save the QR code.</p>  
   </div>
@@ -115,14 +115,14 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
   M.AutoInit();
 
   function getFormData() {
-    const amount = parseFloat(document.querySelector('#last_name').value) || 0;
-    const currency = document.querySelector('#form-select-1').value;
+    const amount = parseFloat(document.querySelector('#payment-amount').value) || 0;
+    const currency = document.querySelector('#currency-select').value;
     return { amount, currency };
   }
 
 function validatePaymentMethod() {
   const { amount, currency } = getFormData();
-  const selectedPaymentMethod = document.querySelector('input[name="option"]:checked');
+  const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked');
   const errorCard = document.getElementById('error-card');
 
   if (!selectedPaymentMethod) {
@@ -284,11 +284,14 @@ function processForm() {
   const successCard = document.getElementById('success-card-paynow');
   const errorCard = document.getElementById('error-card');
   const totalString = document.getElementById('amount-sgd');
+  const qrContainer = document.getElementById('paynow-qr');
 
-  
   // First, hide both cards
   successCard.style.display = 'none';
   errorCard.style.display = 'none';
+
+  // Clear the old QR code by resetting the container
+  qrContainer.innerHTML = '';
 
   if (validatePaymentMethod()) {
     // Calculate total and generate PayNow string
@@ -301,15 +304,15 @@ function processForm() {
     successCard.style.display = 'block';
     errorCard.style.display = 'none';
     
-	// Options
-	var qroptions = {
-		text: paynowString,
-    quietZone: 10,
-    logo: "https://pay.seetow.sg/paynow-logo-2.png"
-	};
-	
-	// Create QRCode Object
-	new QRCode(document.getElementById("paynow-qr"), qroptions);
+    // Options for QR code generation
+    var qroptions = {
+      text: paynowString,
+      quietZone: 10,
+      logo: "https://pay.seetow.sg/paynow-logo-2.png"
+    };
+    
+    // Create QRCode Object
+    new QRCode(qrContainer, qroptions);
   
   } else {
     // If validation fails, show error card
@@ -317,6 +320,27 @@ function processForm() {
     successCard.style.display = 'none';
   }
 }
+
+function prefillCharges() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // Prefill GST checkbox if gst query param is set to 1
+  const gstPrefill = urlParams.get('gst');
+  if (gstPrefill === '1') {
+    document.getElementById('gst-checkbox').checked = true;
+  }
+
+  // Prefill Service Charge checkbox if svc query param is set to 1
+  const svcPrefill = urlParams.get('svc');
+  if (svcPrefill === '1') {
+    document.getElementById('service-charge-checkbox').checked = true;
+  }
+}
+
+// Call the function when the page loads
+window.onload = function() {
+  prefillCharges();
+};
 
 </script>
 
