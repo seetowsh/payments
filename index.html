@@ -67,9 +67,12 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 </label>
 </p>
 
+<p>
+Transaction date does not matter if your payment does not require currency conversion (ie you're paying SGD using PayNow and Pounds using Faster Payments).
+</p>
+
 <div class="row">
   <div class="input-field col s8 m6">
-    <label for="transaction-date">Transaction date</label>
     <input type="date" id="transaction-date" />
   </div>
   <div class="input-field col s4 m6">
@@ -77,7 +80,12 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
     </a>
   </div>
 </div>
+<br />
+<hr />
 
+<p>
+Payment method:
+</p>
 
 <div class="radio-group">
 <p>
@@ -100,7 +108,7 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 <div class="card green lighten-3" style="display: none;" id="success-card-paynow">
   <div class="card-content">
     <span class="card-title">Success!</span>
-    <p>Your total due is &#36;<b id="amount-sgd"></b>. Simply scan this QR code with your favourite banking app to pay.</p>
+    <p>Your total due is &#36;<b id="amount-sgd"></b>. Simply scan this QR code with your favourite banking app to pay. The amount hhas already been prefilled.</p>
     <div id="paynow-qr"></div>
     <p>If you are paying using this device, please take a screenshot or save the QR code.</p>  
   </div>
@@ -124,8 +132,51 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
 <script src="https://cdn.jsdelivr.net/npm/@materializecss/materialize@2.1.1/dist/js/materialize.min.js" integrity="sha256-3qGJ4NkNzpEWdLmV4WeiJulql2I6TslFusW4C5QhbmU=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/easyqrcodejs@4.6.1/dist/easy.qrcode.min.js" integrity="sha256-Fo2ReOrm4CpFeRT3gEiA303kO8giOmwEkm6uz3+6DBg=" crossorigin="anonymous"></script>
 
+
 <script>
   M.AutoInit();
+
+const currencyMap = {
+  "1": "GBP",
+  "2": "EUR", 
+  "3": "SGD", 
+  "4": "USD"  
+  // Add more as needed
+};
+
+
+function formatDateForApi(dateString) {
+  const [year, month, day] = dateString.split('-');
+  return `${month}%2F${day}%2F${year}`;
+}
+
+async function fetchVisaConversionRate(amount, date, fromCurr, toCurrValue) {
+  const toCurr = currencyMap[toCurrValue];  // Get ISO currency code from the map
+  
+  // Convert date to MM-DD-YYYY format
+  const formattedDate = formatDateForApi(date);
+  
+  // Construct the URL inside JavaScript to avoid HTML escaping of special characters
+  const apiUrl = `https://corsproxy.io/?https://www.visa.com.sg/cmsapi/fx/rates?amount=${amount}&fee=0.5&utcConvertedDate=${formattedDate}&exchangedate=${formattedDate}&fromCurr=${fromCurr}&toCurr=${toCurr}`;
+
+  console.log("Fetching URL: ", apiUrl);  // Log the formatted URL for debugging
+
+  try {
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+
+    if (data.status === "success") {
+      return parseFloat(data.convertedAmount);
+    } else {
+      console.error("Currency conversion failed", data);
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching currency conversion data", error);
+    return null;
+  }
+}
+
 
   function getFormData() {
     const amount = parseFloat(document.querySelector('#payment-amount').value) || 0;
@@ -133,53 +184,49 @@ Unfortunately, non-SGD payments require manual calculation for gratuity/tips. Fu
     return { amount, currency };
   }
 
-function validatePaymentMethod() {
-  const { amount, currency } = getFormData();
-  const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked');
-  const errorCard = document.getElementById('error-card');
-  
-  // Clear the error message before validation
-  errorCard.querySelector('.card-content p').textContent = '';
+  function validatePaymentMethod() {
+    const { amount, currency } = getFormData();
+    const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked');
+    const errorCard = document.getElementById('error-card');
 
-  // Check if currency and amount are filled in
-  if (!currency || amount <= 0) {
-    // Show error message if currency or amount is missing
-    errorCard.querySelector('.card-content p').textContent = "Please enter a valid amount and select a currency.";
-    return false;
+    // Clear the error message before validation
+    errorCard.querySelector('.card-content p').textContent = '';
+
+    // Check if currency and amount are filled in
+    if (!currency || amount <= 0) {
+      errorCard.querySelector('.card-content p').textContent = "Please enter a valid amount and select a currency.";
+      return false;
+    }
+
+    // Check if payment method is selected
+    if (!selectedPaymentMethod) {
+      errorCard.querySelector('.card-content p').textContent = "Please select a payment method.";
+      return false;
+    }
+
+    // Additional validation for Faster Payments if currency is SGD
+    const value = selectedPaymentMethod.value;
+    if (value === "2" && currency === "3") { // Faster Payments selected and currency is SGD
+      errorCard.querySelector('.card-content p').textContent = "Faster Payments is not available for SGD.";
+      return false;
+    }
+
+    // Error handling for GST and service charge checkboxes with non-SGD currencies
+    const gstChecked = document.getElementById('gst-checkbox').checked;
+    const serviceChargeChecked = document.getElementById('service-charge-checkbox').checked;
+
+    if ((gstChecked || serviceChargeChecked) && currency !== "3") { // Non-SGD currency selected
+      errorCard.querySelector('.card-content p').textContent = "GST and Service Charge can only be applied for SGD (S$).";
+      return false;
+    }
+
+    return true; // Form is valid
   }
-
-  // Check if payment method is selected
-  if (!selectedPaymentMethod) {
-    // Set custom error message for no payment method selected
-    errorCard.querySelector('.card-content p').textContent = "Please select a payment method.";
-    return false;
-  }
-
-  // Additional validation for Faster Payments if currency is SGD
-  const value = selectedPaymentMethod.value;
-  if (value === "2" && currency === "3") { // Faster Payments selected and currency is SGD
-    errorCard.querySelector('.card-content p').textContent = "Faster Payments is not available for SGD.";
-    return false;
-  }
-
-  // Error handling for GST and service charge checkboxes with non-SGD currencies
-  const gstChecked = document.getElementById('gst-checkbox').checked;
-  const serviceChargeChecked = document.getElementById('service-charge-checkbox').checked;
-
-  if ((gstChecked || serviceChargeChecked) && currency !== "3") { // Non-SGD currency selected
-    errorCard.querySelector('.card-content p').textContent = "GST and Service Charge can only be applied for SGD (S$).";
-    return false;
-  }
-
-  return true; // Form is valid
-}
-
-
 
   function calculateTotal() {
     const { amount, currency } = getFormData();
     let subtotal = amount;
-    
+
     if (currency === "3") { // Currency is SGD
       const serviceChargeChecked = document.querySelector('#service-charge-checkbox').checked;
       const gstChecked = document.querySelector('#gst-checkbox').checked;
@@ -187,24 +234,19 @@ function validatePaymentMethod() {
       if (serviceChargeChecked) {
         subtotal *= 1.1; // Add service charge
       }
-      
+
       if (gstChecked) {
         subtotal *= 1.09; // Add GST
       }
 
       return subtotal;
     }
-    
+
     return amount; // Return the original amount if currency is not SGD
   }
 
-  String.prototype.padLeft = function (n, str) {
-    if (n < String(this).length) {
-      return this.toString();
-    }
-    else {
-      return Array(n - String(this).length + 1).join(str || '0') + this;
-    }
+  String.prototype.padLeft = function(n, str) {
+    return Array(n - String(this).length + 1).join(str || '0') + this;
   }
 
   function crc16(s) {
@@ -256,8 +298,7 @@ function validatePaymentMethod() {
     var j, i;
 
     for (i = 0; i < s.length; i++) {
-
-      c = s.charCodeAt(i);
+      var c = s.charCodeAt(i);
       if (c > 255) {
         throw new RangeError();
       }
@@ -269,171 +310,155 @@ function validatePaymentMethod() {
   }
 
   function generatePayNowStr(opts) {
-    console.log(`Generating payment string with amount: ${opts.amount}`);
-
     const p = [
-      { id: '00', value: '01' },                    // ID 00: Payload Format Indicator (Fixed to '01')
-      { id: '01', value: '12' },                    // ID 01: Point of Initiation Method 11: static, 12: dynamic
+      { id: '00', value: '01' },
+      { id: '01', value: '12' },
       {
-        id: '26', value:                            // ID 26: Merchant Account Info Template
-          [{ id: '00', value: 'SG.PAYNOW' },
-          { id: '01', value: '0' },                 // 0 for mobile, 2 for UEN. 1 is not used.
-          { id: '02', value: '+6594219292' },      // PayNow UEN (Company Unique Entity Number)
-          { id: '03', value: '0' },       // 1 = Payment amount is editable, 0 = Not Editable
-          { id: '04', value: '20301231' }]         // Expiry date (YYYYMMDD)
+        id: '26', value: [
+          { id: '00', value: 'SG.PAYNOW' },
+          { id: '01', value: '0' },
+          { id: '02', value: '+6594219292' },
+          { id: '03', value: '0' },
+          { id: '04', value: '20301231' }
+        ]
       },
-      { id: '52', value: '0000' },                  // ID 52: Merchant Category Code (not used)
-      { id: '53', value: '702' },                   // ID 53: Currency. SGD is 702
-      { id: '54', value: opts.amount.toString() },  // ID 54: Transaction Amount
-      { id: '58', value: 'SG' },                    // ID 58: 2-letter Country Code (SG)
-      { id: '59', value: 'SEE TOW S H' },          // ID 59: Company Name
-      { id: '60', value: 'Singapore' },             // ID 60: Merchant City
+      { id: '52', value: '0000' },
+      { id: '53', value: '702' },
+      { id: '54', value: opts.amount.toString() },
+      { id: '58', value: 'SG' },
+      { id: '59', value: 'SEE TOW S H' },
+      { id: '60', value: 'Singapore' },
       {
-        id: '62', value: [{                         // ID 62: Additional data fields
-          id: '01', value: opts.refNumber || 'ST Pay/PayNow Trf'    // ID 01: Bill Number
-        }]
+        id: '62', value: [{ id: '01', value: opts.refNumber || 'ST Pay/PayNow Trf' }]
       }
-    ]
+    ];
 
     let str = p.reduce((final, current) => {
-      if (Array.isArray(current.value)) { // nest loop
+      if (Array.isArray(current.value)) {
         current.value = current.value.reduce((f, c) => {
           f += c.id + c.value.length.toString().padLeft(2) + c.value;
-          return f
-        }, "")
+          return f;
+        }, "");
       }
       final += current.id + current.value.length.toString().padLeft(2) + current.value;
-      return final
-    }, "")
+      return final;
+    }, "");
 
-    // Here we add "6304" to the previous string
-    // ID 63 (Checksum) 04 (4 characters)
-    // Do a CRC16 of the whole string including the "6304"
-    // then append it to the end.
     str += '6304' + crc16(str + '6304');
-
     return str;
   }
 
-function processForm() {
-  const successCard = document.getElementById('success-card-paynow');
-  const errorCard = document.getElementById('error-card');
-  const totalString = document.getElementById('amount-sgd');
-  const qrContainer = document.getElementById('paynow-qr');
+  async function processForm() {
+    const successCard = document.getElementById('success-card-paynow');
+    const errorCard = document.getElementById('error-card');
+    const totalString = document.getElementById('amount-sgd');
+    const qrContainer = document.getElementById('paynow-qr');
 
-  // Hide both cards initially
-  successCard.style.display = 'none';
-  errorCard.style.display = 'none';
-  qrContainer.innerHTML = ''; // Clear old QR code
-
-  // Validate the payment method, transaction date, and currency constraints
-  if (validatePaymentMethod() && validateTransactionDateAndPaymentMethod()) {
-    // Calculate total and generate PayNow string
-    const total = calculateTotal();
-    const paynowString = generatePayNowStr({ amount: total.toFixed(2) });
-    console.log(paynowString);
-    totalString.textContent = total.toFixed(2);
-
-    // Show success card
-    successCard.style.display = 'block';
-    errorCard.style.display = 'none';
-
-    // Options for QR code generation
-    var qroptions = {
-      text: paynowString,
-      quietZone: 10,
-      logo: "https://pay.seetow.sg/paynow-logo-2.png"
-    };
-
-    // Create QRCode Object
-    new QRCode(qrContainer, qroptions);
-  
-  } else {
-    // Show error card if validation fails
-    errorCard.style.display = 'block';
+    // Hide both cards initially
     successCard.style.display = 'none';
-  }
-}
+    errorCard.style.display = 'none';
+    qrContainer.innerHTML = ''; // Clear old QR code
 
+    if (validatePaymentMethod() && validateTransactionDateAndPaymentMethod()) {
+      // Calculate total based on currency
+      const { amount, currency } = getFormData();
+      let total = calculateTotal();
+      const transactionDate = document.getElementById('transaction-date').value;
+      const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
 
+      // Determine from currency based on payment method
+      const fromCurr = selectedPaymentMethod === "1" ? "SGD" : "GBP"; // PayNow: SGD, Faster Payments: GBP
+      const toCurr = currency === "3" ? "SGD" : document.querySelector('#currency-select').value; // Handle other currencies
 
-function prefillCharges() {
-  const urlParams = new URLSearchParams(window.location.search);
+      if (fromCurr !== toCurr) {
+        total = await fetchVisaConversionRate(amount, transactionDate, fromCurr, toCurr);
+      }
 
-  // Prefill GST checkbox if gst query param is set to 1
-  const gstPrefill = urlParams.get('gst');
-  if (gstPrefill === '1') {
-    document.getElementById('gst-checkbox').checked = true;
-  }
+      if (total === null) {
+        errorCard.querySelector('.card-content p').textContent = "Currency conversion failed. Please try again.";
+        errorCard.style.display = 'block';
+        return;
+      }
 
-  // Prefill Service Charge checkbox if svc query param is set to 1
-  const svcPrefill = urlParams.get('svc');
-  if (svcPrefill === '1') {
-    document.getElementById('service-charge-checkbox').checked = true;
-  }
-}
+      const paynowString = generatePayNowStr({ amount: total.toFixed(2) });
+      console.log(paynowString);
+      totalString.textContent = total.toFixed(2);
 
-// Call the function when the page loads
-window.onload = function() {
-  prefillCharges();
-};
+      // Show success card
+      successCard.style.display = 'block';
+      errorCard.style.display = 'none';
 
-function validateTransactionDateAndPaymentMethod() {
-  const dateInput = document.getElementById('transaction-date');
-  const selectedDate = new Date(dateInput.value);
-  const currentDate = new Date();
-  const pastDateLimit = new Date();
-  pastDateLimit.setDate(currentDate.getDate() - 360);
-  
-  const { currency } = getFormData();
-  const selectedPaymentMethod = document.querySelector('input[name="option"]:checked');
-  const errorCard = document.getElementById('error-card');
+      // Options for QR code generation
+      var qroptions = {
+        text: paynowString,
+        quietZone: 10,
+        logo: "https://pay.seetow.sg/paynow-logo-2.png"
+      };
 
-  // Check if the date is not selected
-  if (!dateInput.value) {
-    errorCard.querySelector('.card-content p').textContent = "Please select a transaction date.";
-    errorCard.style.display = 'block';
-    return false;
-  }
+      // Create QRCode Object
+      new QRCode(qrContainer, qroptions);
 
-  // Validate that the selected date is within the last 360 days
-  if (selectedDate < pastDateLimit || selectedDate > currentDate) {
-    errorCard.querySelector('.card-content p').textContent = "Transaction date must be within the last 360 days.";
-    errorCard.style.display = 'block';
-    return false;
+    } else {
+      // Show error card if validation fails
+      errorCard.style.display = 'block';
+      successCard.style.display = 'none';
+    }
   }
 
-  // Currency-specific checks
-  if (selectedPaymentMethod) {
-    const paymentMethod = selectedPaymentMethod.value;
+  function prefillCharges() {
+    const urlParams = new URLSearchParams(window.location.search);
 
-    // If PayNow is selected and currency is NOT SGD
-    if (paymentMethod === "1" && currency !== "3") {
-      errorCard.querySelector('.card-content p').textContent = "PayNow is only available for SGD transactions.";
+    // Prefill GST checkbox if gst query param is set to 1
+    const gstPrefill = urlParams.get('gst');
+    if (gstPrefill === '1') {
+      document.getElementById('gst-checkbox').checked = true;
+    }
+
+    // Prefill Service Charge checkbox if svc query param is set to 1
+    const svcPrefill = urlParams.get('svc');
+    if (svcPrefill === '1') {
+      document.getElementById('service-charge-checkbox').checked = true;
+    }
+  }
+
+  // Call the function when the page loads
+  window.onload = function() {
+    prefillCharges();
+  };
+
+  function validateTransactionDateAndPaymentMethod() {
+    const dateInput = document.getElementById('transaction-date');
+    const selectedDate = new Date(dateInput.value);
+    const currentDate = new Date();
+    const pastDateLimit = new Date();
+    pastDateLimit.setDate(currentDate.getDate() - 360);
+
+    const errorCard = document.getElementById('error-card');
+
+    // Check if the date is not selected
+    if (!dateInput.value) {
+      errorCard.querySelector('.card-content p').textContent = "Please select a transaction date.";
       errorCard.style.display = 'block';
       return false;
     }
 
-    // If Faster Payments is selected and currency is NOT GBP
-    if (paymentMethod === "2" && currency !== "1") {
-      errorCard.querySelector('.card-content p').textContent = "Faster Payments is only available for GBP transactions.";
+    // Validate that the selected date is within the last 360 days
+    if (selectedDate < pastDateLimit || selectedDate > currentDate) {
+      errorCard.querySelector('.card-content p').textContent = "Transaction date must be within the last 360 days.";
       errorCard.style.display = 'block';
       return false;
     }
+
+    return true; // Validation passed
   }
 
-  return true; // Validation passed
-}
-
-
-function setToday() {
-  const dateInput = document.getElementById('transaction-date');
-  const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
-  dateInput.value = today;
-}
-
-
+  function setToday() {
+    const dateInput = document.getElementById('transaction-date');
+    const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+    dateInput.value = today;
+  }
 </script>
+
 
 </body>
 </html>
