@@ -102,7 +102,7 @@ Payment method:
 </p>
 </div>
 <a tabindex="0" class="btn filled icon-left" onclick="processForm()">
-<i class="material-icons">calculate</i>Submit
+<i class="material-icons">calculate</i>Generate instructions
 </a>
 
 <div class="card green lighten-3" style="display: none;" id="success-card-paynow">
@@ -113,6 +113,32 @@ Payment method:
     <p>If you are paying using this device, please take a screenshot or save the QR code.</p>  
   </div>
 </div>
+
+<div class="card green lighten-3" style="display: none;" id="success-card-fps">
+  <div class="card-content">
+    <span class="card-title">Success!</span>
+    <p>Your total due is &#163;<b id="amount-gbp"></b>. Please save the following information in your banking app to pay.</p>
+    <table>
+      <tr>
+        <td><p>Account</p></td>
+        <td><p id="account-no">38327711</p></td>
+        <td><a tabindex="0" class="btn filled icon-left" onclick="copyText(this)">
+  <i class="material-icons">content_copy</i><span class="btn-text">Copy</span>
+</a>
+</td>
+      </tr>
+      <tr>
+        <td><p>Sort Code</p></td>
+        <td><p id="sort-code">231470</p></td>
+        <td><a tabindex="0" class="btn filled icon-left" onclick="copyText(this)">
+  <i class="material-icons">content_copy</i><span class="btn-text">Copy</span>
+</a>
+</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
 
 <div class="card red accent-1" style="display: none;" id="error-card">
   <div class="card-content">
@@ -151,7 +177,8 @@ function formatDateForApi(dateString) {
 }
 
 async function fetchVisaConversionRate(amount, date, fromCurr, toCurrValue) {
-  const toCurr = currencyMap[toCurrValue];  // Get ISO currency code from the map
+  const toCurr = toCurrValue;  // Get ISO currency code from the map
+  console.log(toCurrValue)
   
   // Convert date to MM-DD-YYYY format
   const formattedDate = formatDateForApi(date);
@@ -348,44 +375,54 @@ async function fetchVisaConversionRate(amount, date, fromCurr, toCurrValue) {
     return str;
   }
 
-  async function processForm() {
-    const successCard = document.getElementById('success-card-paynow');
-    const errorCard = document.getElementById('error-card');
-    const totalString = document.getElementById('amount-sgd');
-    const qrContainer = document.getElementById('paynow-qr');
+async function processForm() {
+  const successCardPayNow = document.getElementById('success-card-paynow');
+  const successCardFps = document.getElementById('success-card-fps');
+  const errorCard = document.getElementById('error-card');
+  const amountSgd = document.getElementById('amount-sgd');
+  const amountGbp = document.getElementById('amount-gbp');
+  const qrContainer = document.getElementById('paynow-qr');
 
-    // Hide both cards initially
-    successCard.style.display = 'none';
-    errorCard.style.display = 'none';
-    qrContainer.innerHTML = ''; // Clear old QR code
+  // Hide both success cards and error card initially
+  successCardPayNow.style.display = 'none';
+  successCardFps.style.display = 'none';
+  errorCard.style.display = 'none';
+  qrContainer.innerHTML = ''; // Clear old QR code
 
-    if (validatePaymentMethod() && validateTransactionDateAndPaymentMethod()) {
-      // Calculate total based on currency
-      const { amount, currency } = getFormData();
-      let total = calculateTotal();
-      const transactionDate = document.getElementById('transaction-date').value;
-      const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
+  if (validatePaymentMethod() && validateTransactionDateAndPaymentMethod()) {
+    // Calculate total based on currency
+    const { amount, currency } = getFormData();
+    let total = calculateTotal();
+    const transactionDate = document.getElementById('transaction-date').value;
+    const selectedPaymentMethod = document.querySelector('input[name="payment-method"]:checked').value;
 
-      // Determine from currency based on payment method
-      const fromCurr = selectedPaymentMethod === "1" ? "SGD" : "GBP"; // PayNow: SGD, Faster Payments: GBP
-      const toCurr = currency === "3" ? "SGD" : document.querySelector('#currency-select').value; // Handle other currencies
+    // Determine from currency based on payment method
+    const fromCurr = selectedPaymentMethod === "1" ? "SGD" : "GBP"; // PayNow: SGD, Faster Payments: GBP
+    const toCurr = currency === "3" ? "SGD" : currencyMap[currency]; // Handle other currencies
 
-      if (fromCurr !== toCurr) {
-        total = await fetchVisaConversionRate(amount, transactionDate, fromCurr, toCurr);
-      }
+// Check if conversion is needed
+if (fromCurr === toCurr) {
+  total = amount; // No conversion needed if both currencies are the same
+} else {
+  // Perform conversion if currencies are different
+  total = await fetchVisaConversionRate(amount, transactionDate, fromCurr, toCurr);
 
-      if (total === null) {
-        errorCard.querySelector('.card-content p').textContent = "Currency conversion failed. Please try again.";
-        errorCard.style.display = 'block';
-        return;
-      }
+  if (total === null) {
+    errorCard.querySelector('.card-content p').textContent = "Currency conversion failed. Please try again.";
+    errorCard.style.display = 'block';
+    return;
+  }
+}
 
+
+    // Show the appropriate success card based on the payment method
+    if (selectedPaymentMethod === "1") { // PayNow
       const paynowString = generatePayNowStr({ amount: total.toFixed(2) });
       console.log(paynowString);
-      totalString.textContent = total.toFixed(2);
+      amountSgd.textContent = total.toFixed(2);
 
-      // Show success card
-      successCard.style.display = 'block';
+      // Show PayNow success card
+      successCardPayNow.style.display = 'block';
       errorCard.style.display = 'none';
 
       // Options for QR code generation
@@ -397,13 +434,20 @@ async function fetchVisaConversionRate(amount, date, fromCurr, toCurrValue) {
 
       // Create QRCode Object
       new QRCode(qrContainer, qroptions);
+    } else { // Faster Payments
+      amountGbp.textContent = total.toFixed(2) + ' GBP';
 
-    } else {
-      // Show error card if validation fails
-      errorCard.style.display = 'block';
-      successCard.style.display = 'none';
+      // Show Faster Payments success card
+      successCardFps.style.display = 'block';
+      errorCard.style.display = 'none';
     }
+  } else {
+    // Show error card if validation fails
+    errorCard.style.display = 'block';
+    successCardPayNow.style.display = 'none';
+    successCardFps.style.display = 'none';
   }
+}
 
   function prefillCharges() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -457,6 +501,33 @@ async function fetchVisaConversionRate(amount, date, fromCurr, toCurrValue) {
     const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
     dateInput.value = today;
   }
+  
+function copyText(button) {
+  // Get the text to copy from the table cell to the left of the button
+  const textToCopy = button.parentElement.previousElementSibling.textContent;
+
+  // Create a temporary textarea element to copy the text
+  const tempTextarea = document.createElement('textarea');
+  tempTextarea.value = textToCopy;
+  document.body.appendChild(tempTextarea);
+  tempTextarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(tempTextarea);
+
+  // Store the icon HTML and change the button text
+  const iconHTML = button.querySelector('.material-icons').outerHTML;
+  button.querySelector('.material-icons').style.visibility = 'hidden'; // Hide icon
+  button.querySelector('.btn-text').textContent = 'Copied'; // Change button text
+
+  // Revert the button text and show the icon back after 3 seconds
+  setTimeout(() => {
+    button.querySelector('.btn-text').textContent = 'Copy'; // Revert button text
+    button.querySelector('.material-icons').style.visibility = 'visible'; // Show icon back
+  }, 3000);
+}
+
+
+
 </script>
 
 
